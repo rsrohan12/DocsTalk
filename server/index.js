@@ -8,7 +8,7 @@ import OpenAI from 'openai';
 import 'dotenv/config';
 
 const client = new OpenAI({
-  apiKey: '',
+  apiKey: process.env.OPENAI_API_KEY,
 });
 const queue = new Queue('file-upload-queue', {
   connection: {
