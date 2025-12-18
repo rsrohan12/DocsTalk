@@ -40,6 +40,8 @@ const upload = multer({ storage: storage });
 const app = express();
 app.use(cors());
 
+app.use("/uploads", express.static("uploads"));
+
 app.get('/', (req, res) => {
   return res.json({ status: 'All Good!' });
 });
@@ -53,7 +55,12 @@ app.post('/upload/pdf', upload.single('pdf'), async (req, res) => {
       path: req.file.path,
     })
   );
-  return res.json({ message: 'uploaded' });
+  return res.json({
+    success: true,
+    originalName: req.file.originalname,
+    storedFilename: req.file.filename,
+    url: `/uploads/${req.file.filename}`,
+  });
 });
 
 app.get('/chat', async (req, res) => {
