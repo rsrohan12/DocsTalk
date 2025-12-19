@@ -10,6 +10,8 @@ import { OllamaEmbeddings } from '@langchain/ollama';
 import 'dotenv/config';
 import { GoogleGenerativeAIEmbeddings } from '@langchain/google-genai';
 import Groq from "groq-sdk";
+import { connectDB } from './db';
+import { requireAuth } from './middleware';
 
 // const client = new OpenAI({
 //   apiKey: process.env.OPENAI_API_KEY,
@@ -42,12 +44,13 @@ app.use(cors());
 
 app.use("/uploads", express.static("uploads"));
 
+connectDB()
+
 app.get('/', (req, res) => {
   return res.json({ status: 'All Good!' });
 });
 
-app.post('/upload/pdf', upload.single('pdf'), async (req, res) => {
-  await queue.add(
+await queue.add(
     'file-ready',
     JSON.stringify({
       filename: req.file.originalname,
@@ -55,12 +58,38 @@ app.post('/upload/pdf', upload.single('pdf'), async (req, res) => {
       path: req.file.path,
     })
   );
-  return res.json({
-    success: true,
-    originalName: req.file.originalname,
-    storedFilename: req.file.filename,
-    url: `/uploads/${req.file.filename}`,
-  });
+
+app.post('/upload/pdf', requireAuth ,upload.single('pdf'), async (req, res) => {
+  try {
+      const userId = req.auth?.userId;
+
+      // 1️⃣ Save PDF metadata in MongoDB
+      const pdf = await Pdf.create({
+        userId,
+        originalName: req.file.originalname,
+        storedName: req.file.filename,
+        url: `/uploads/${req.file.filename}`,
+
+      });
+
+      // 2️⃣ Send job to worker WITH pdfId
+      await queue.add("file-ready", {
+        pdfId: pdf._id.toString(),
+        filename: req.file.originalname,
+        destination: req.file.destination,
+        filePath: req.file.path,
+      });
+
+      return res.json({
+        success: true,
+        pdfId: pdf._id,
+        originalName: pdf.originalName,
+        url: pdf.url,
+      });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "PDF upload failed" });
+    }
 });
 
 app.get('/chat', async (req, res) => {

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
+import { useAuth } from "@clerk/nextjs";
 import {
   Upload,
   Send,
@@ -74,12 +75,15 @@ const PDFPanel = ({
 
 /* ---------------- FILE UPLOAD ---------------- */
 
-const FileUploadSection = ({
+const FileUploadSection = async({
   onUploaded,
 }: {
   onUploaded: (pdf: { name: string; url: string }) => void;
 }) => {
   const [uploading, setUploading] = useState(false);
+  const { getToken } = useAuth();
+
+  const token = await getToken();
 
   const handleUpload = () => {
     const input = document.createElement('input');
@@ -97,6 +101,9 @@ const FileUploadSection = ({
       try {
         const res = await fetch('http://localhost:8000/upload/pdf', {
           method: 'POST',
+          headers: {
+            "Authorization": `Bearer ${token}`,
+          },
           body: formData,
         });
 
