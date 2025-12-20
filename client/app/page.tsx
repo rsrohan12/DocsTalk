@@ -358,12 +358,12 @@ const ChatSection = ({ pdfId }: { pdfId?: string }) => {
         const data = await res.json();
         setMessages(data.messages || []);
       } catch (err) {
-        console.error("Failed to load chat history");
+        console.error("Failed to load chat history", err);
       }
     };
 
     loadHistory();
-  }, [pdfId]);
+  }, [pdfId, getAuthToken]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -395,6 +395,7 @@ const ChatSection = ({ pdfId }: { pdfId?: string }) => {
         { role: "assistant", content: data.message, documents: data.docs },
       ]);
     } catch (err) {
+      console.log("Error", err)
       setMessages((m) => [
         ...m,
         {
@@ -441,7 +442,7 @@ const ChatSection = ({ pdfId }: { pdfId?: string }) => {
                 Ready to help!
               </h3>
               <p className="text-gray-500 text-sm">
-                I'll analyze your PDF and answer any questions you have about
+                I&apos;ll analyze your PDF and answer any questions you have about
                 its content.
               </p>
             </div>
@@ -548,7 +549,7 @@ export default function RAGPDFInterface() {
     };
 
     loadPdfs();
-  }, []);
+  }, [getAuthToken]);
 
   /* Restore selected PDF (ONCE on refresh) */
   useEffect(() => {
@@ -568,12 +569,12 @@ export default function RAGPDFInterface() {
         const data = await res.json();
         setActivePdf(data.pdf);
       } catch (e) {
-        console.error("Failed to restore PDF");
+        console.error("Failed to restore PDF", e);
       }
     };
 
     restorePdf();
-  }, []);
+  }, [getAuthToken]);
 
   const clearSelectedPdf = () => {
     setActivePdf(null);
