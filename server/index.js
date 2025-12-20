@@ -205,5 +205,36 @@ app.get("/chat/history", requireAuth, async (req, res) => {
   }
 });
 
+app.get("/pdfs", requireAuth, async (req, res) => {
+  try {
+    const userId = req.auth.userId;
+
+    const pdfs = await Pdf.find({ userId }).sort({ createdAt: -1 });
+
+    res.json({
+      success: true,
+      pdfs,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch PDFs" });
+  }
+});
+
+app.get("/pdfs/:pdfId", requireAuth, async (req, res) => {
+  const { pdfId } = req.params;
+  const userId = req.auth.userId;
+
+  const pdf = await Pdf.findOne({ _id: pdfId, userId });
+  if (!pdf) {
+    return res.status(404).json({ error: "PDF not found" });
+  }
+
+  return res.json({ 
+    success: true,
+    pdf 
+  });
+});
+
 
 app.listen(8000, () => console.log(`Server started on PORT:${8000}`));

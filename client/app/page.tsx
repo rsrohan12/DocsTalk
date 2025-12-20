@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from "react";
 import {
   Upload,
   Send,
@@ -9,8 +9,11 @@ import {
   ChevronUp,
   Loader2,
   RotateCcw,
-} from 'lucide-react';
-import { useClerkToken } from '@/hooks/useClerkToken';
+  Menu,
+  X,
+  Sparkles,
+} from "lucide-react";
+import { useClerkToken } from "@/hooks/useClerkToken";
 
 /* ---------------- Types ---------------- */
 
@@ -28,47 +31,210 @@ interface Doc {
 }
 
 interface IMessage {
-  role: 'assistant' | 'user';
+  role: "assistant" | "user";
   content?: string;
   documents?: Doc[];
 }
 
+interface PdfItem {
+  _id: string;
+  originalName: string;
+  url: string;
+}
+
+/* ---------------- SIDEBAR ---------------- */
+
+const Sidebar = ({
+  isOpen,
+  onClose,
+  pdfs,
+  onSelectPdf,
+  activePdfId,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  pdfs: PdfItem[];
+  onSelectPdf: (pdf: PdfItem) => void;
+  activePdfId?: string;
+}) => {
+  if (!isOpen) return null;
+
+  return (
+    <>
+      {/* Overlay */}
+      <div
+        className="fixed inset-0 bg-black/50 z-40 backdrop-blur-sm"
+        onClick={onClose}
+      />
+
+      {/* Sidebar */}
+      <div className="fixed left-0 top-0 h-full w-80 bg-white shadow-2xl z-50 flex flex-col animate-slide-in">
+        {/* Header */}
+        <div className="flex items-center justify-between p-5 border-b bg-linear-to-r from-blue-50 to-indigo-50">
+          <div>
+            <h2 className="text-lg font-bold text-gray-800">Your PDFs</h2>
+            <p className="text-xs text-gray-500 mt-0.5">
+              {pdfs.length} document{pdfs.length !== 1 ? "s" : ""}
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 hover:bg-white/50 cursor-pointer rounded-lg transition-colors"
+          >
+            <X className="w-5 h-5 text-gray-600" />
+          </button>
+        </div>
+
+        {/* PDF List */}
+        <div className="flex-1 overflow-y-auto p-4">
+          {pdfs.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full text-gray-400">
+              <FileText className="w-16 h-16 mb-3 opacity-30" />
+              <p className="text-sm font-medium">No PDFs uploaded yet</p>
+              <p className="text-xs mt-1">Upload one to get started</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {pdfs.map((pdf) => (
+                <button
+                  key={pdf._id}
+                  onClick={() => {
+                    onSelectPdf(pdf);
+                    onClose();
+                  }}
+                  className={`w-full text-left p-3 rounded-xl cursor-pointer border-2 transition-all group ${
+                    activePdfId === pdf._id
+                      ? "border-blue-500 bg-blue-50 shadow-sm"
+                      : "border-gray-200 hover:border-blue-300 hover:bg-blue-50/50"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={`p-2 rounded-lg ${
+                        activePdfId === pdf._id
+                          ? "bg-blue-100"
+                          : "bg-gray-100 group-hover:bg-blue-100"
+                      }`}
+                    >
+                      <FileText
+                        className={`w-5 h-5 ${
+                          activePdfId === pdf._id
+                            ? "text-blue-600"
+                            : "text-gray-500 group-hover:text-blue-600"
+                        }`}
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p
+                        className={`text-sm font-medium truncate ${
+                          activePdfId === pdf._id
+                            ? "text-blue-700"
+                            : "text-gray-700"
+                        }`}
+                      >
+                        {pdf.originalName}
+                      </p>
+                      {activePdfId === pdf._id && (
+                        <p className="text-xs text-blue-600 mt-0.5">Active</p>
+                      )}
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </>
+  );
+};
+
+/* ---------------- SOURCE DOCUMENT ---------------- */
+
+const SourceDocument = ({ doc, index }: { doc: Doc; index: number }) => {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="border-2 border-gray-200 rounded-xl bg-white overflow-hidden hover:border-blue-300 transition-colors">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex justify-between items-center p-4 hover:bg-gray-50 transition-colors"
+      >
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-blue-100 rounded-lg">
+            <FileText className="w-4 h-4 text-blue-600" />
+          </div>
+          <div className="text-left">
+            <p className="text-sm font-semibold text-gray-800">
+              Source {index + 1}
+            </p>
+            <p className="text-xs text-gray-500">
+              Page {doc.metadata.loc?.pageNumber || "N/A"}
+              {doc.metadata.loc?.lines && (
+                <span className="ml-2">
+                  Lines {doc.metadata.loc.lines.from}-{doc.metadata.loc.lines.to}
+                </span>
+              )}
+            </p>
+          </div>
+        </div>
+        {open ? (
+          <ChevronUp className="w-5 h-5 text-gray-400" />
+        ) : (
+          <ChevronDown className="w-5 h-5 text-gray-400" />
+        )}
+      </button>
+
+      {open && (
+        <div className="px-4 pb-4 pt-2 border-t-2 border-gray-100 bg-gray-50">
+          <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
+            {doc.pageContent}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+};
+
 /* ---------------- PDF PANEL ---------------- */
 
 const PDFPanel = ({
-  pdfUrl,
-  fileName,
+  pdf,
   onReplace,
 }: {
-  pdfUrl: string;
-  fileName: string;
+  pdf: PdfItem;
   onReplace: () => void;
 }) => {
   return (
-    <div className="h-full flex flex-col">
-      {/* Header */}
-      <div className="border-b px-4 py-3 flex items-center justify-between bg-white">
-        <div className="flex items-center gap-2">
-          <FileText className="w-5 h-5 text-blue-600" />
-          <span className="text-sm font-medium text-gray-800 truncate">
-            {fileName}
-          </span>
+    <div className="h-full flex flex-col bg-gray-50">
+      <div className="border-b-2 px-6 py-4 flex justify-between items-center bg-white shadow-sm">
+        <div className="flex items-center gap-3 min-w-0 flex-1 ml-8">
+          <div className="p-2 bg-blue-100 rounded-lg ml-8">
+            <FileText className="w-5 h-5 text-blue-600" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-semibold text-gray-800">
+              {pdf.originalName}
+            </p>
+            <p className="text-xs text-gray-500">PDF Document</p>
+          </div>
         </div>
         <button
           onClick={onReplace}
-          className="text-xs flex items-center gap-1 text-gray-500 hover:text-blue-600"
+          className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
         >
           <RotateCcw className="w-4 h-4" />
-          Replace
+          <span className="hidden sm:inline">Replace</span>
         </button>
       </div>
 
-      {/* PDF Preview */}
-      <iframe
-        src={pdfUrl}
-        className="flex-1 w-full"
-        title="PDF Preview"
-      />
+      <div className="flex-1 bg-gray-100 p-2">
+        <iframe
+          src={`http://localhost:8000${pdf.url}`}
+          className="w-full h-full rounded-lg shadow-inner"
+          title="PDF Preview"
+        />
+      </div>
     </div>
   );
 };
@@ -78,18 +244,17 @@ const PDFPanel = ({
 const FileUploadSection = ({
   onUploaded,
 }: {
-  onUploaded: (pdf: { name: string; url: string }) => void;
+  onUploaded: (pdf: PdfItem) => void;
 }) => {
   const [uploading, setUploading] = useState(false);
-
   const { getAuthToken } = useClerkToken();
 
   const handleUpload = async () => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'application/pdf';
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "application/pdf";
 
-     const token = await getAuthToken();
+    const token = await getAuthToken();
 
     input.onchange = async (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
@@ -97,25 +262,22 @@ const FileUploadSection = ({
 
       setUploading(true);
       const formData = new FormData();
-      formData.append('pdf', file);
+      formData.append("pdf", file);
 
       try {
-        const res = await fetch('http://localhost:8000/upload/pdf', {
-          method: 'POST',
-          headers: {
-            "Authorization": `Bearer ${token}`,
-          },
+        const res = await fetch("http://localhost:8000/upload/pdf", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
           body: formData,
         });
 
         const data = await res.json();
 
         onUploaded({
-          name: data.originalName,
-          url: `http://localhost:8000${data.url}`,
+          _id: data.pdfId,
+          originalName: data.originalName,
+          url: data.url,
         });
-      } catch (err) {
-        console.error('Upload failed', err);
       } finally {
         setUploading(false);
       }
@@ -125,27 +287,42 @@ const FileUploadSection = ({
   };
 
   return (
-    <div className="h-full flex flex-col items-center justify-center p-8">
-      <div
-        onClick={handleUpload}
-        className="border-4 border-dashed border-gray-300 rounded-2xl p-12 cursor-pointer hover:border-blue-500 hover:bg-blue-50 transition-all"
-      >
-        <div className="flex flex-col items-center text-center">
-          {uploading ? (
-            <>
-              <Loader2 className="w-14 h-14 animate-spin text-blue-500 mb-4" />
-              <p className="text-gray-600">Uploading PDF…</p>
-            </>
-          ) : (
-            <>
-              <Upload className="w-14 h-14 text-gray-400 mb-4" />
-              <p className="text-lg font-semibold">Upload PDF</p>
-              <p className="text-sm text-gray-500 mt-1">
-                Click to browse
-              </p>
-            </>
-          )}
+    <div className="h-full flex flex-col items-center justify-center p-8 bg-linear-to-br from-blue-50 via-white to-indigo-50">
+      <div className="max-w-md w-full">
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-100 rounded-2xl mb-4">
+            <Sparkles className="w-8 h-8 text-blue-600" />
+          </div>
+          <h1 className="text-3xl font-bold text-gray-800 mb-2">
+            RAG PDF Assistant
+          </h1>
+          <p className="text-gray-600">
+            Upload a PDF document and start asking questions
+          </p>
         </div>
+
+        <button
+          onClick={handleUpload}
+          disabled={uploading}
+          className="w-full border-4 cursor-pointer border-dashed border-gray-300 rounded-2xl p-16 hover:border-blue-500 hover:bg-blue-50 transition-all group disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {uploading ? (
+            <div className="flex flex-col items-center">
+              <Loader2 className="w-12 h-12 text-blue-600 animate-spin mb-3" />
+              <p className="text-sm font-medium text-gray-600">Uploading...</p>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center">
+              <Upload className="w-12 h-12 text-gray-400 group-hover:text-blue-600 mb-3 transition-colors" />
+              <p className="text-lg font-semibold text-gray-700 mb-1">
+                Upload PDF File
+              </p>
+              <p className="text-sm text-gray-500">
+                Click to browse your files
+              </p>
+            </div>
+          )}
+        </button>
       </div>
     </div>
   );
@@ -153,66 +330,76 @@ const FileUploadSection = ({
 
 /* ---------------- CHAT ---------------- */
 
-const SourceDocument = ({ doc, index }: { doc: Doc; index: number }) => {
-  const [open, setOpen] = useState(false);
-
-  return (
-    <div className="border rounded-lg bg-white">
-      <div
-        onClick={() => setOpen(!open)}
-        className="flex justify-between items-center p-3 cursor-pointer hover:bg-gray-50"
-      >
-        <span className="text-sm font-medium">
-          Source {index + 1} — Page {doc.metadata.loc?.pageNumber}
-        </span>
-        {open ? <ChevronUp /> : <ChevronDown />}
-      </div>
-
-      {open && (
-        <div className="p-4 border-t text-sm whitespace-pre-wrap">
-          {doc.pageContent}
-        </div>
-      )}
-    </div>
-  );
-};
-
-const ChatSection = () => {
-  const [input, setInput] = useState('');
+const ChatSection = ({ pdfId }: { pdfId?: string }) => {
+  const [input, setInput] = useState("");
   const [messages, setMessages] = useState<IMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
 
+  const { getAuthToken } = useClerkToken();
+
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (!pdfId) {
+      setMessages([]);
+      return;
+    }
+
+    const loadHistory = async () => {
+      try {
+        const token = await getAuthToken();
+        const res = await fetch(
+          `http://localhost:8000/chat/history?pdfId=${pdfId}`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
+
+        const data = await res.json();
+        setMessages(data.messages || []);
+      } catch (err) {
+        console.error("Failed to load chat history");
+      }
+    };
+
+    loadHistory();
+  }, [pdfId]);
+
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
   const sendMessage = async () => {
-    if (!input.trim()) return;
+    if (!input.trim() || !pdfId) return;
 
     const userMsg = input;
-    setInput('');
-    setMessages((m) => [...m, { role: 'user', content: userMsg }]);
+    setInput("");
+    setMessages((m) => [...m, { role: "user", content: userMsg }]);
     setLoading(true);
 
     try {
+      const token = await getAuthToken();
       const res = await fetch(
-        `http://localhost:8000/chat?message=${encodeURIComponent(userMsg)}`
+        `http://localhost:8000/chat?pdfId=${pdfId}&message=${encodeURIComponent(
+          userMsg
+        )}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
       );
+
       const data = await res.json();
 
       setMessages((m) => [
         ...m,
-        {
-          role: 'assistant',
-          content: data.message,
-          documents: data.docs,
-        },
+        { role: "assistant", content: data.message, documents: data.docs },
       ]);
-    } catch {
+    } catch (err) {
       setMessages((m) => [
         ...m,
-        { role: 'assistant', content: 'Error occurred.' },
+        {
+          role: "assistant",
+          content: "Sorry, something went wrong. Please try again.",
+        },
       ]);
     } finally {
       setLoading(false);
@@ -220,49 +407,109 @@ const ChatSection = () => {
   };
 
   return (
-    <div className="h-full flex flex-col bg-gray-50">
-      <div className="flex-1 overflow-y-auto p-6">
-        {messages.map((m, i) => (
-          <div key={i} className="mb-6">
-            <div
-              className={`rounded-xl px-4 py-3 ${
-                m.role === 'user'
-                  ? 'bg-blue-600 text-white ml-auto w-fit'
-                  : 'bg-white border'
-              }`}
-            >
-              {m.content}
-            </div>
+    <div className="h-full flex flex-col bg-linear-to-b from-gray-50 to-white">
+      {/* Header */}
+      <div className="border-b-2 bg-white shadow-sm px-6 py-4">
+        <h2 className="text-xl font-bold text-gray-800">DocsTalks</h2>
+        <p className="text-sm text-gray-500 mt-1">
+          Ask questions about your document
+        </p>
+      </div>
 
-            {m.documents && (
-              <div className="mt-3 space-y-2">
-                {m.documents.map((d, idx) => (
-                  <SourceDocument key={d.id} doc={d} index={idx} />
-                ))}
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto p-6">
+        {messages.length === 0 ? (
+          <div className="h-full flex items-center justify-center">
+            <div className="text-center max-w-md">
+              <div className="inline-flex items-center justify-center w-20 h-20 bg-linear-to-br from-blue-100 to-indigo-100 rounded-full mb-4">
+                <Sparkles className="w-10 h-10 text-blue-600" />
+              </div>
+              <h3 className="text-xl font-semibold text-gray-800 mb-2">
+                Ready to help!
+              </h3>
+              <p className="text-gray-500 text-sm">
+                I'll analyze your PDF and answer any questions you have about
+                its content.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <>
+            {messages.map((m, i) => (
+              <div
+                key={i}
+                className={`mb-6 flex ${
+                  m.role === "user" ? "justify-end" : "justify-start"
+                }`}
+              >
+                <div
+                  className={`max-w-3xl ${m.role === "user" ? "w-auto" : "w-full"}`}
+                >
+                  <div
+                    className={`rounded-2xl px-5 py-3 shadow-sm ${
+                      m.role === "user"
+                        ? "bg-linear-to-r from-blue-600 to-blue-700 text-white"
+                        : "bg-white border-2 border-gray-200 text-gray-800"
+                    }`}
+                  >
+                    <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                      {m.content}
+                    </p>
+                  </div>
+
+                  {m.documents && m.documents.length > 0 && (
+                    <div className="mt-4 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <div className="h-px flex-1 bg-linear-to-r from-transparent via-gray-300 to-transparent" />
+                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider px-2">
+                          Sources ({m.documents.length})
+                        </p>
+                        <div className="h-px flex-1 bg-linear-to-r from-transparent via-gray-300 to-transparent" />
+                      </div>
+                      {m.documents.map((d, idx) => (
+                        <SourceDocument key={d.id} doc={d} index={idx} />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+
+            {loading && (
+              <div className="flex justify-start mb-6">
+                <div className="bg-white border-2 border-gray-200 rounded-2xl px-5 py-3 shadow-sm">
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 text-blue-600 animate-spin" />
+                    <span className="text-sm text-gray-600">Thinking...</span>
+                  </div>
+                </div>
               </div>
             )}
-          </div>
-        ))}
-
-        {loading && <Loader2 className="animate-spin text-gray-400" />}
+          </>
+        )}
         <div ref={endRef} />
       </div>
 
-      <div className="border-t p-4 bg-white flex gap-2">
-        <input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
-          placeholder="Ask something about the PDF…"
-          className="flex-1 border rounded-xl px-4 py-2"
-        />
-        <button
-          onClick={sendMessage}
-          className="bg-blue-600 text-white px-5 rounded-xl"
-          disabled={input === ""}
-        >
-          <Send />
-        </button>
+      {/* Input */}
+      <div className="border-t-2 bg-white shadow-lg px-6 py-4">
+        <div className="flex gap-3 max-w-4xl mx-auto">
+          <input
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && sendMessage()}
+            className="flex-1 border-2 border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+            placeholder="Ask a question about your PDF..."
+            disabled={loading || !pdfId}
+          />
+          <button
+            onClick={sendMessage}
+            disabled={!input.trim() || loading || !pdfId}
+            className="px-6 py-3 bg-linear-to-r from-blue-600 to-blue-700 text-white rounded-xl hover:from-blue-700 hover:to-blue-800 disabled:from-gray-300 disabled:to-gray-300 disabled:cursor-not-allowed transition-all shadow-md hover:shadow-lg flex items-center gap-2 font-medium"
+          >
+            <Send className="w-5 h-5" />
+            <span className="hidden sm:inline">Send</span>
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -271,29 +518,97 @@ const ChatSection = () => {
 /* ---------------- MAIN ---------------- */
 
 export default function RAGPDFInterface() {
-  const [pdf, setPdf] = useState<{
-    name: string;
-    url: string;
-  } | null>(null);
+  const [pdfs, setPdfs] = useState<PdfItem[]>([]);
+  const [activePdf, setActivePdf] = useState<PdfItem | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { getAuthToken } = useClerkToken();
+
+  /* Load sidebar PDFs (ONCE) */
+  useEffect(() => {
+    const loadPdfs = async () => {
+      const token = await getAuthToken();
+      const res = await fetch("http://localhost:8000/pdfs", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      setPdfs(data.pdfs || []);
+    };
+
+    loadPdfs();
+  }, []);
+
+  /* Restore selected PDF (ONCE on refresh) */
+  useEffect(() => {
+    const restorePdf = async () => {
+      const params = new URLSearchParams(window.location.search);
+      const pdfId = params.get("pdfId");
+      if (!pdfId) return;
+
+      try {
+        const token = await getAuthToken();
+        const res = await fetch(`http://localhost:8000/pdfs/${pdfId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (!res.ok) return;
+
+        const data = await res.json();
+        setActivePdf(data.pdf);
+      } catch (e) {
+        console.error("Failed to restore PDF");
+      }
+    };
+
+    restorePdf();
+  }, []);
+
+  const clearSelectedPdf = () => {
+    setActivePdf(null);
+    const url = new URL(window.location.href);
+    url.searchParams.delete("pdfId");
+    window.history.replaceState({}, "", url.pathname);
+  };
 
   return (
-    <div className="h-screen flex">
-      {/* LEFT */}
-      <div className="w-[45%] border-r">
-        {!pdf ? (
-          <FileUploadSection onUploaded={setPdf} />
+    <div className="h-screen flex relative overflow-hidden bg-gray-100">
+      {/* Sidebar toggle - Fixed position with proper z-index */}
+      <button
+        onClick={() => setSidebarOpen(true)}
+        className="fixed top-2 left-6 z-30 bg-white p-3 cursor-pointer rounded-xl shadow-lg hover:shadow-xl hover:bg-blue-50 transition-all border-2 border-gray-200 hover:border-blue-300"
+        title="Open PDF Library"
+      >
+        <Menu className="w-6 h-6 text-gray-700" />
+      </button>
+
+      <Sidebar
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        pdfs={pdfs}
+        activePdfId={activePdf?._id}
+        onSelectPdf={(pdf) => {
+          setActivePdf(pdf);
+          window.history.pushState({}, "", `?pdfId=${pdf._id}`);
+        }}
+      />
+
+      {/* Left Panel - PDF Viewer */}
+      <div className="w-[45%] border-r-2 border-gray-200">
+        {activePdf ? (
+          <PDFPanel pdf={activePdf} onReplace={clearSelectedPdf} />
         ) : (
-          <PDFPanel
-            fileName={pdf.name}
-            pdfUrl={pdf.url}
-            onReplace={() => setPdf(null)}
+          <FileUploadSection
+            onUploaded={(pdf) => {
+              setPdfs((p) => [...p, pdf]);
+              setActivePdf(pdf);
+              window.history.pushState({}, "", `?pdfId=${pdf._id}`);
+            }}
           />
         )}
       </div>
 
-      {/* RIGHT */}
-      <div className="w-[60%]">
-        <ChatSection />
+      {/* Right Panel - Chat */}
+      <div className="w-[55%]">
+        <ChatSection pdfId={activePdf?._id} />
       </div>
     </div>
   );
