@@ -14,6 +14,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { useClerkToken } from "@/hooks/useClerkToken";
+import { UserButton } from "@clerk/nextjs";
 
 /* ---------------- Types ---------------- */
 
@@ -414,6 +415,18 @@ const ChatSection = ({ pdfId }: { pdfId?: string }) => {
         <p className="text-sm text-gray-500 mt-1">
           Ask questions about your document
         </p>
+
+        <div className="fixed top-7 right-6 z-40">
+
+          <UserButton
+            appearance={{
+              elements: {
+                avatarBox: "w-8 h-8",
+              },
+            }}
+          />
+
+        </div>
       </div>
 
       {/* Messages */}
