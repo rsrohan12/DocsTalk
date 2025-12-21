@@ -1,6 +1,6 @@
 import fetch from "node-fetch";
 
-async function ensureQdrantIndex() {
+export async function ensureQdrantIndex() {
   try {
     const res = await fetch(
       `${process.env.QDRANT_URL}/collections/${process.env.QDRANT_COLLECTION}/index`,
