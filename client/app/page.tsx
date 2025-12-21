@@ -363,7 +363,7 @@ const ChatSection = ({ pdfId }: { pdfId?: string }) => {
     };
 
     loadHistory();
-  }, [pdfId, getAuthToken]);
+  }, [pdfId]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -549,7 +549,7 @@ export default function RAGPDFInterface() {
     };
 
     loadPdfs();
-  }, [getAuthToken]);
+  }, []);
 
   /* Restore selected PDF (ONCE on refresh) */
   useEffect(() => {
@@ -574,7 +574,7 @@ export default function RAGPDFInterface() {
     };
 
     restorePdf();
-  }, [getAuthToken]);
+  }, []);
 
   const clearSelectedPdf = () => {
     setActivePdf(null);
