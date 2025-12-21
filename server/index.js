@@ -11,6 +11,36 @@ import { requireAuth } from './middleware.js';
 import { Pdf } from './models/pdf.js';
 import { Chat } from './models/chat.js';
 import { redis } from './lib/redis.js';
+import fetch from "node-fetch";
+
+async function ensureQdrantIndex() {
+  try {
+    const res = await fetch(
+      `${process.env.QDRANT_URL}/collections/${process.env.QDRANT_COLLECTION}/index`,
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "api-key": process.env.QDRANT_API_KEY,
+        },
+        body: JSON.stringify({
+          field_name: "metadata.pdfId",
+          field_schema: "keyword",
+        }),
+      }
+    );
+
+    if (!res.ok) {
+      const text = await res.text();
+      console.log("⚠️ Qdrant index response:", text);
+    } else {
+      console.log("✅ Qdrant index ensured for metadata.pdfId");
+    }
+  } catch (err) {
+    console.error("❌ Failed to ensure Qdrant index", err);
+  }
+}
+
 
 // const client = new OpenAI({
 //   apiKey: process.env.OPENAI_API_KEY,
@@ -36,9 +66,9 @@ const storage = multer.diskStorage({
 const upload = multer({ storage: storage });
 
 const app = express();
-app.use(cors());
 
-connectDB()
+app.use(cors());
+app.use(express.json());
 
 app.use("/uploads", express.static("uploads"));
 
@@ -233,4 +263,11 @@ app.get("/pdfs/:pdfId", requireAuth, async (req, res) => {
 });
 
 
-app.listen(8000, () => console.log(`Server started on PORT:${8000}`));
+(async () => {
+  await connectDB();
+  await ensureQdrantIndex();
+
+  app.listen(8000, () =>
+    console.log("🚀 Server running on PORT 8000")
+  );
+})();
