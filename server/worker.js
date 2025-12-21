@@ -5,6 +5,8 @@ import { QdrantVectorStore } from "@langchain/qdrant";
 import { PDFLoader } from "@langchain/community/document_loaders/fs/pdf";
 import { CharacterTextSplitter } from "@langchain/textsplitters";
 import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
+import { redis } from "./lib/redis.js";
+import 'dotenv/config';
 
 const worker = new Worker(
   "file-upload-queue",
@@ -50,9 +52,11 @@ const worker = new Worker(
       });
 
       console.log("4️⃣ Writing to Qdrant...");
-      await QdrantVectorStore.fromDocuments(docsWithMetadata, embeddings, {
-        url: "http://localhost:6333",
-        collectionName: "pdf-db-testing",
+      await QdrantVectorStore.fromDocuments(docsWithMetadata, embeddings, 
+      {
+        url: process.env.QDRANT_URL,
+        apiKey: process.env.QDRANT_API_KEY,
+        collectionName: process.env.QDRANT_COLLECTION,
       });
 
       console.log(`✅ Vectors stored successfully for pdfId=${pdfId}`);
@@ -62,10 +66,7 @@ const worker = new Worker(
     }
   },
   {
-    connection: {
-      host: "localhost",
-      port: 6379,
-    },
+    connection: redis
   }
 );
 

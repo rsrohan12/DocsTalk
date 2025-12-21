@@ -2,18 +2,18 @@ import express from 'express';
 import cors from 'cors';
 import multer from 'multer';
 import { Queue } from 'bullmq';
-import { OpenAIEmbeddings } from '@langchain/openai';
 import { QdrantVectorStore } from '@langchain/qdrant';
-import OpenAI from 'openai';
-import { ChatOllama } from "@langchain/ollama";
-import { OllamaEmbeddings } from '@langchain/ollama';
 import 'dotenv/config';
 import { GoogleGenerativeAIEmbeddings } from '@langchain/google-genai';
 import Groq from "groq-sdk";
-import { connectDB } from './db.js';
+import { connectDB } from './lib/db.js';
 import { requireAuth } from './middleware.js';
 import { Pdf } from './models/pdf.js';
 import { Chat } from './models/chat.js';
+import { redis } from './lib/redis.js';
+import fetch from "node-fetch";
+import { ensureQdrantIndex } from './helpers/qdrantIndex.js';
+
 
 // const client = new OpenAI({
 //   apiKey: process.env.OPENAI_API_KEY,
@@ -22,11 +22,8 @@ const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY,
 });
 
-const queue = new Queue('file-upload-queue', {
-  connection: {
-    host: 'localhost',
-    port: '6379', // Redis host url
-  },
+const queue = new Queue("file-upload-queue", {
+  connection: redis,
 });
 
 const storage = multer.diskStorage({
@@ -42,11 +39,12 @@ const storage = multer.diskStorage({
 const upload = multer({ storage: storage });
 
 const app = express();
+
 app.use(cors());
+app.use(express.json());
 
 app.use("/uploads", express.static("uploads"));
 
-connectDB()
 
 app.get('/', (req, res) => {
   return res.json({ status: 'All Good!' });
@@ -106,8 +104,9 @@ app.get("/chat", requireAuth, async (req, res) => {
     const vectorStore = await QdrantVectorStore.fromExistingCollection(
       embeddings,
       {
-        url: "http://localhost:6333",
-        collectionName: "pdf-db-testing",
+        url: process.env.QDRANT_URL,
+        apiKey: process.env.QDRANT_API_KEY,
+        collectionName: process.env.QDRANT_COLLECTION,
       }
     );
 
@@ -237,4 +236,11 @@ app.get("/pdfs/:pdfId", requireAuth, async (req, res) => {
 });
 
 
-app.listen(8000, () => console.log(`Server started on PORT:${8000}`));
+(async () => {
+  await connectDB();
+  await ensureQdrantIndex();
+
+  app.listen(8000, () =>
+    console.log("🚀 Server running on PORT 8000")
+  );
+})();
