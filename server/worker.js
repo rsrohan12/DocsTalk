@@ -7,6 +7,7 @@ import { CharacterTextSplitter } from "@langchain/textsplitters";
 import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
 import { redis } from "./lib/redis.js";
 import 'dotenv/config';
+import http from "http";
 
 const worker = new Worker(
   "file-upload-queue",
@@ -69,5 +70,14 @@ const worker = new Worker(
     connection: redis
   }
 );
+
+const PORT = process.env.PORT || 10000;
+
+http.createServer((req, res) => {
+  res.writeHead(200, { "Content-Type": "text/plain" });
+  res.end("Worker running");
+}).listen(PORT, () => {
+  console.log(`🟢 Dummy worker server listening on port ${PORT}`);
+});
 
 export default worker;
