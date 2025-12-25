@@ -12,6 +12,7 @@ import {
   Menu,
   X,
   Sparkles,
+  Trash2,
 } from "lucide-react";
 import { useClerkToken } from "@/hooks/useClerkToken";
 import { UserButton } from "@clerk/nextjs";
@@ -52,12 +53,14 @@ const Sidebar = ({
   pdfs,
   onSelectPdf,
   activePdfId,
+  onDeletePdf,
 }: {
   isOpen: boolean;
   onClose: () => void;
   pdfs: PdfItem[];
   onSelectPdf: (pdf: PdfItem) => void;
   activePdfId?: string;
+  onDeletePdf: (pdfId: string) => void;
 }) => {
   if (!isOpen) return null;
 
@@ -111,6 +114,7 @@ const Sidebar = ({
                   }`}
                 >
                   <div className="flex items-center gap-3">
+                    {/* Left icon */}
                     <div
                       className={`p-2 rounded-lg ${
                         activePdfId === pdf._id
@@ -126,6 +130,8 @@ const Sidebar = ({
                         }`}
                       />
                     </div>
+
+                    {/* Filename */}
                     <div className="flex-1 min-w-0">
                       <p
                         className={`text-sm font-medium truncate ${
@@ -140,6 +146,18 @@ const Sidebar = ({
                         <p className="text-xs text-blue-600 mt-0.5">Active</p>
                       )}
                     </div>
+
+                    {/* Delete icon */}
+                    <span
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDeletePdf(pdf._id);
+                      }}
+                      className="p-2 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition"
+                      title="Delete PDF"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </span>
                   </div>
                 </button>
               ))}
@@ -174,7 +192,8 @@ const SourceDocument = ({ doc, index }: { doc: Doc; index: number }) => {
               Page {doc.metadata.loc?.pageNumber || "N/A"}
               {doc.metadata.loc?.lines && (
                 <span className="ml-2">
-                  Lines {doc.metadata.loc.lines.from}-{doc.metadata.loc.lines.to}
+                  Lines {doc.metadata.loc.lines.from}-
+                  {doc.metadata.loc.lines.to}
                 </span>
               )}
             </p>
@@ -349,12 +368,9 @@ const ChatSection = ({ pdfId }: { pdfId?: string }) => {
     const loadHistory = async () => {
       try {
         const token = await getAuthToken();
-        const res = await fetch(
-          `${API_BASE_URL}/chat/history?pdfId=${pdfId}`,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-          }
-        );
+        const res = await fetch(`${API_BASE_URL}/chat/history?pdfId=${pdfId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
 
         const data = await res.json();
         setMessages(data.messages || []);
@@ -396,7 +412,7 @@ const ChatSection = ({ pdfId }: { pdfId?: string }) => {
         { role: "assistant", content: data.message, documents: data.docs },
       ]);
     } catch (err) {
-      console.log("Error", err)
+      console.log("Error", err);
       setMessages((m) => [
         ...m,
         {
@@ -419,7 +435,6 @@ const ChatSection = ({ pdfId }: { pdfId?: string }) => {
         </p>
 
         <div className="fixed top-7 right-6 z-40">
-
           <UserButton
             appearance={{
               elements: {
@@ -427,7 +442,6 @@ const ChatSection = ({ pdfId }: { pdfId?: string }) => {
               },
             }}
           />
-
         </div>
       </div>
 
@@ -443,8 +457,8 @@ const ChatSection = ({ pdfId }: { pdfId?: string }) => {
                 Ready to help!
               </h3>
               <p className="text-gray-500 text-sm">
-                I&apos;ll analyze your PDF and answer any questions you have about
-                its content.
+                I&apos;ll analyze your PDF and answer any questions you have
+                about its content.
               </p>
             </div>
           </div>
@@ -458,7 +472,9 @@ const ChatSection = ({ pdfId }: { pdfId?: string }) => {
                 }`}
               >
                 <div
-                  className={`max-w-3xl ${m.role === "user" ? "w-auto" : "w-full"}`}
+                  className={`max-w-3xl ${
+                    m.role === "user" ? "w-auto" : "w-full"
+                  }`}
                 >
                   <div
                     className={`rounded-2xl px-5 py-3 shadow-sm ${
@@ -584,6 +600,28 @@ export default function RAGPDFInterface() {
     window.history.replaceState({}, "", url.pathname);
   };
 
+  const handleDeletePdf = async (pdfId: string) => {
+    try {
+      const token = await getAuthToken();
+      await fetch(`${API_BASE_URL}/del-pdf/${pdfId}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      // Update sidebar list
+      setPdfs((prev) => prev.filter((p) => p._id !== pdfId));
+
+      // If deleted PDF was active → clear it
+      if (activePdf?._id === pdfId) {
+        clearSelectedPdf();
+      }
+    } catch (error) {
+      console.error("Failed to delete PDF", error);
+    }
+  };
+
   return (
     <div className="h-screen flex relative overflow-hidden bg-gray-100">
       {/* Sidebar toggle - Fixed position with proper z-index */}
@@ -604,6 +642,7 @@ export default function RAGPDFInterface() {
           setActivePdf(pdf);
           window.history.pushState({}, "", `?pdfId=${pdf._id}`);
         }}
+        onDeletePdf={handleDeletePdf}
       />
 
       {/* Left Panel - PDF Viewer */}

@@ -42,7 +42,15 @@ const upload = multer({ storage: multer.memoryStorage() });
 
 const app = express();
 
-app.use(cors());
+app.use(
+  cors({
+    origin: [
+      "http://localhost:3000",
+      "https://docs-talk.vercel.app",
+    ],
+    credentials: true,
+  })
+);
 app.use(express.json());
 
 // app.use("/uploads", express.static("uploads"));
@@ -259,6 +267,61 @@ app.get("/pdfs/:pdfId", requireAuth, async (req, res) => {
     pdf,
   });
 });
+
+app.delete("/del-pdf/:pdfId", requireAuth, async (req, res) => {
+  try {
+    const { pdfId } = req.params;
+    const userId = req.auth.userId;
+
+    // 1️⃣ Find PDF first
+    const pdf = await Pdf.findOne({ _id: pdfId, userId });
+
+    if (!pdf) {
+      return res.status(404).json({ error: "PDF not found" });
+    }
+
+    // 2️⃣ Delete PDF metadata
+    await Pdf.deleteOne({ _id: pdfId });
+
+    // 3️⃣ Delete chat history
+    await Chat.deleteOne({ pdfId });
+
+    // 4️⃣ Delete PDF from Supabase Storage
+    if (pdf.filePath) {
+      await supabase.storage
+        .from("pdfs")
+        .remove([pdf.filePath]);
+    }
+
+    // 5️⃣ Delete vectors from Qdrant
+    // await fetch(`${process.env.QDRANT_URL}/collections/${process.env.QDRANT_COLLECTION}/points/delete`, {
+    //   method: "POST",
+    //   headers: {
+    //     "Content-Type": "application/json",
+    //     "api-key": process.env.QDRANT_API_KEY,
+    //   },
+    //   body: JSON.stringify({
+    //     filter: {
+    //       must: [
+    //         {
+    //           key: "metadata.pdfId",
+    //           match: { value: pdfId },
+    //         },
+    //       ],
+    //     },
+    //   }),
+    // });
+
+    return res.json({
+      success: true,
+      message: "PDF deleted successfully",
+    });
+  } catch (error) {
+    console.error("Delete PDF error:", error);
+    res.status(500).json({ error: "Failed to delete PDF" });
+  }
+});
+
 
 (async () => {
   await connectDB();
