@@ -17,6 +17,8 @@ import {
 import { useClerkToken } from "@/hooks/useClerkToken";
 import { UserButton } from "@clerk/nextjs";
 import { API_BASE_URL } from "@/lib/config";
+import { ChatSkeleton } from "@/components/ui/chatSkeleton";
+import { PDFPanelSkeleton } from "@/components/ui/pdfPanelSkeleton";
 
 /* ---------------- Types ---------------- */
 
@@ -45,6 +47,33 @@ interface PdfItem {
   pdfUrl: string;
 }
 
+/* ---------------- SKELETONS ---------------- */
+
+const SidebarSkeleton = () => {
+  return (
+    <div className="p-4 space-y-2">
+      {[...Array(6)].map((_, i) => (
+        <div
+          key={i}
+          className="p-3 rounded-xl border-2 border-gray-200 animate-pulse"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 bg-gray-200 rounded-lg" />
+            <div className="flex-1 space-y-2">
+              <div className="h-3 bg-gray-200 rounded w-3/4" />
+              <div className="h-2 bg-gray-200 rounded w-1/2" />
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+
+
+
+
 /* ---------------- SIDEBAR ---------------- */
 
 const Sidebar = ({
@@ -54,6 +83,7 @@ const Sidebar = ({
   onSelectPdf,
   activePdfId,
   onDeletePdf,
+  isLoading,
 }: {
   isOpen: boolean;
   onClose: () => void;
@@ -61,6 +91,7 @@ const Sidebar = ({
   onSelectPdf: (pdf: PdfItem) => void;
   activePdfId?: string;
   onDeletePdf: (pdfId: string) => void;
+  isLoading?: boolean;
 }) => {
   if (!isOpen) return null;
 
@@ -79,7 +110,7 @@ const Sidebar = ({
           <div>
             <h2 className="text-lg font-bold text-gray-800">Your PDFs</h2>
             <p className="text-xs text-gray-500 mt-0.5">
-              {pdfs.length} document{pdfs.length !== 1 ? "s" : ""}
+              {isLoading ? "Loading..." : `${pdfs.length} document${pdfs.length !== 1 ? "s" : ""}`}
             </p>
           </div>
           <button
@@ -91,15 +122,17 @@ const Sidebar = ({
         </div>
 
         {/* PDF List */}
-        <div className="flex-1 overflow-y-auto p-4">
-          {pdfs.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-gray-400">
+        <div className="flex-1 overflow-y-auto">
+          {isLoading ? (
+            <SidebarSkeleton />
+          ) : pdfs.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full text-gray-400 p-4">
               <FileText className="w-16 h-16 mb-3 opacity-30" />
               <p className="text-sm font-medium">No PDFs uploaded yet</p>
               <p className="text-xs mt-1">Upload one to get started</p>
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className="p-4 space-y-2">
               {pdfs.map((pdf) => (
                 <button
                   key={pdf._id}
@@ -351,7 +384,7 @@ const FileUploadSection = ({
 
 /* ---------------- CHAT ---------------- */
 
-const ChatSection = ({ pdfId }: { pdfId?: string }) => {
+const ChatSection = ({ pdfId, initializing }: { pdfId?: string; initializing?: boolean }) => {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<IMessage[]>([]);
   const [loading, setLoading] = useState(false);
@@ -360,7 +393,7 @@ const ChatSection = ({ pdfId }: { pdfId?: string }) => {
   const { getAuthToken } = useClerkToken();
 
   useEffect(() => {
-    if (!pdfId) {
+    if (!pdfId || initializing) {
       setMessages([]);
       return;
     }
@@ -380,7 +413,7 @@ const ChatSection = ({ pdfId }: { pdfId?: string }) => {
     };
 
     loadHistory();
-  }, [pdfId]);
+  }, [pdfId, initializing]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -424,6 +457,10 @@ const ChatSection = ({ pdfId }: { pdfId?: string }) => {
       setLoading(false);
     }
   };
+
+  if (initializing) {
+    return <ChatSkeleton />;
+  }
 
   return (
     <div className="h-full flex flex-col bg-linear-to-b from-gray-50 to-white">
@@ -552,45 +589,44 @@ export default function RAGPDFInterface() {
   const [pdfs, setPdfs] = useState<PdfItem[]>([]);
   const [activePdf, setActivePdf] = useState<PdfItem | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [initializing, setInitializing] = useState(true);
   const { getAuthToken } = useClerkToken();
 
-  /* Load sidebar PDFs (ONCE) */
   useEffect(() => {
-    const loadPdfs = async () => {
-      const token = await getAuthToken();
-      const res = await fetch(`${API_BASE_URL}/pdfs`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
-      setPdfs(data.pdfs || []);
-    };
-
-    loadPdfs();
-  }, []);
-
-  /* Restore selected PDF (ONCE on refresh) */
-  useEffect(() => {
-    const restorePdf = async () => {
-      const params = new URLSearchParams(window.location.search);
-      const pdfId = params.get("pdfId");
-      if (!pdfId) return;
-
+    const bootstrap = async () => {
       try {
         const token = await getAuthToken();
-        const res = await fetch(`${API_BASE_URL}/pdfs/${pdfId}`, {
+
+        // Load all PDFs
+        const pdfsRes = await fetch(`${API_BASE_URL}/pdfs`, {
           headers: { Authorization: `Bearer ${token}` },
         });
+        const pdfsData = await pdfsRes.json();
+        setPdfs(pdfsData.pdfs || []);
 
-        if (!res.ok) return;
+        // Check if there's a pdfId in URL
+        const params = new URLSearchParams(window.location.search);
+        const pdfId = params.get("pdfId");
 
-        const data = await res.json();
-        setActivePdf(data.pdf);
+        if (pdfId) {
+          // Restore active PDF
+          const pdfRes = await fetch(`${API_BASE_URL}/pdfs/${pdfId}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+
+          if (pdfRes.ok) {
+            const pdfData = await pdfRes.json();
+            setActivePdf(pdfData.pdf);
+          }
+        }
       } catch (e) {
-        console.error("Failed to restore PDF", e);
+        console.error("Bootstrap failed", e);
+      } finally {
+        setInitializing(false);
       }
     };
 
-    restorePdf();
+    bootstrap();
   }, []);
 
   const clearSelectedPdf = () => {
@@ -643,11 +679,14 @@ export default function RAGPDFInterface() {
           window.history.pushState({}, "", `?pdfId=${pdf._id}`);
         }}
         onDeletePdf={handleDeletePdf}
+        isLoading={initializing}
       />
 
       {/* Left Panel - PDF Viewer */}
       <div className="w-[45%] border-r-2 border-gray-200">
-        {activePdf ? (
+        {initializing ? (
+          <PDFPanelSkeleton />
+        ) : activePdf ? (
           <PDFPanel pdf={activePdf} onReplace={clearSelectedPdf} />
         ) : (
           <FileUploadSection
@@ -662,7 +701,7 @@ export default function RAGPDFInterface() {
 
       {/* Right Panel - Chat */}
       <div className="w-[55%]">
-        <ChatSection pdfId={activePdf?._id} />
+        <ChatSection pdfId={activePdf?._id} initializing={initializing} />
       </div>
     </div>
   );
